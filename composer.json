@@ -1,0 +1,11 @@
+{
+  "require": {
+    "mautic/api-library": "^2.16.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "Kntnt\\Form_Shortcode_Mautic\\": "classes/",
+      "Mautic\\": "vendor/mautic/api-library/lib/"
+    }
+  }
+}
