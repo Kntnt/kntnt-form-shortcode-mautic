@@ -17,16 +17,13 @@ final class Handler {
     private $additional_emails_field;
 
     public function run() {
-
-        $this->email_collision_handling = Plugin::option( 'email_collision_handling', 'create' );
-        $this->additional_emails_field = Plugin::option( 'additional_emails_field', null );
-
         add_action( 'kntnt-form-shortcode-post', [ $this, 'handle_post' ] );
-
     }
 
     public function handle_post( $form_fields ) {
         Plugin::log( 'Form fields: %s', $form_fields );
+        $this->email_collision_handling = Plugin::option( 'email_collision_handling', 'create' );
+        $this->additional_emails_field = Plugin::option( 'additional_emails_field', null );
         $this->set_mautic_segment( $form_fields );
         $this->set_mautic_fields( $form_fields );
         $this->setup_mautic_contacts_api();
@@ -127,7 +124,7 @@ final class Handler {
         return null;
     }
 
-    private function merge_contacts( $dst_contact, $src_contact = null ) {
+    private function merge_contacts( $dst_contact, $src_contact ) {
         if ( $src_contact->email && $src_contact->email != $dst_contact->email ) {
             if ( 'save' == $this->email_collision_handling && $this->additional_emails_field ) {
                 $this->mautic_fields['$additional_emails_field'][] = $src_contact->email;
@@ -149,14 +146,13 @@ final class Handler {
         $contact_obj->id = $contact['fields']['all']['id'];
         $contact_obj->email = $contact['fields']['all']['email'];
         if ( $this->additional_emails_field ) {
-            $contact_obj->$this->additional_emails_field = explode( '\n', $contact['fields']['all'][ $this->additional_emails_field ]\n);
+            $contact_obj->$this->additional_emails_field = explode( '\n', $contact['fields']['all'][ $this->additional_emails_field ] );
         }
         return $contact_obj;
     }
 
     private function form_contact() {
         $contact_obj = new \stdClass();
-        $contact_obj->id = null;
         $contact_obj->email = isset( $this->mautic_fields['email'] ) ? $this->mautic_fields['email'] : null;;
         return $contact_obj;
     }
