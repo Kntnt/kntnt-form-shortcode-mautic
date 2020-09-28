@@ -68,20 +68,37 @@ final class Handler {
         $mautic_contact_from_email = $this->get_mautic_contact_from_email();
 
         if ( $mautic_contact_from_cookie && null == $mautic_contact_from_email ) {
+
+            Plugin::log( 'Merging form into contact identified by cookie.' );
             $this->merge_contacts( $mautic_contact_from_cookie, $this->form_contact() );
+
             $this->mautic_update();
+
         }
         else if ( null == $mautic_contact_from_cookie && $mautic_contact_from_email ) {
+
+            Plugin::log( 'Merging form into contact identified by form email address.' );
             $this->merge_contacts( $mautic_contact_from_email, $this->form_contact() );
+
             $this->mautic_update();
+
         }
-        else if ( $mautic_contact_from_cookie && $mautic_contact_from_email && in_array( $this->email_collision_handling, [ 'update', 'add' ] ) ) {
+        else if ( $mautic_contact_from_cookie && $mautic_contact_from_email && in_array( $this->email_collision_handling, [ 'update', 'save' ] ) ) {
+
+            Plugin::log( 'Merging contact identified by email into contact identified by cookie.' );
             $this->merge_contacts( $mautic_contact_from_cookie, $mautic_contact_from_email );
+
+            Plugin::log( 'Merging form into contact identified by cookie.' );
             $this->merge_contacts( $mautic_contact_from_cookie, $this->form_contact() );
+
             $this->mautic_update();
+
         }
         else {
+
+            Plugin::log( 'No merge.' );
             $this->mautic_create();
+
         }
 
     }
@@ -125,20 +142,34 @@ final class Handler {
     }
 
     private function merge_contacts( $dst_contact, $src_contact ) {
+        Plugin::log( 'Object merged from: %s', $src_contact );
+        Plugin::log( 'Object merged to: %s', $dst_contact );
+        Plugin::log( "Mautic fields before: %s", $this->mautic_fields );
         if ( $src_contact->email && $src_contact->email != $dst_contact->email ) {
             if ( 'save' == $this->email_collision_handling && $this->additional_emails_field ) {
-                $this->mautic_fields['$additional_emails_field'][] = $src_contact->email;
+                if ( $dst_contact->email ) {
+                    $this->mautic_fields[ $this->additional_emails_field ][] = $src_contact->email;
+                    Plugin::log( 'Kept previous email %s and saved %s.', $dst_contact->email, $src_contact->email );
+                }
+                else {
+                    $this->mautic_fields['email'] = $src_contact->email;
+                    Plugin::log( 'Replaced empty email with %s.', $src_contact->email );
+                }
             }
             else if ( 'update' == $this->email_collision_handling ) {
-                if ( $this->additional_emails_field ) {
-                    $this->mautic_fields['additional_emails_field'][] = $dst_contact->email;
+                if ( $dst_contact->email && $this->additional_emails_field ) {
+                    $this->mautic_fields[ $this->additional_emails_field ][] = $dst_contact->email;
+                    Plugin::log( 'Saved previous email %s.', $dst_contact->email );
                 }
                 $this->mautic_fields['email'] = $src_contact->email;
+                Plugin::log( 'Replaced previous email with %s.', $src_contact->email );
             }
             else {
                 $this->mautic_fields['email'] = $src_contact->email;
+                Plugin::log( 'Replaced previous email with %s.', $src_contact->email );
             }
         }
+        Plugin::log( "Mautic fields after: %s", $this->mautic_fields );
     }
 
     private function contact( $contact ) {
@@ -146,7 +177,7 @@ final class Handler {
         $contact_obj->id = $contact['fields']['all']['id'];
         $contact_obj->email = $contact['fields']['all']['email'];
         if ( $this->additional_emails_field ) {
-            $contact_obj->$this->additional_emails_field = explode( '\n', $contact['fields']['all'][ $this->additional_emails_field ] );
+            $contact_obj->{$this->additional_emails_field} = explode( '\n', $contact['fields']['all'][ $this->additional_emails_field ] );
         }
         return $contact_obj;
     }
