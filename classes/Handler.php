@@ -255,11 +255,7 @@ final class Handler {
         }
     }
 
-    private function update_mautic_contact() {
-        Plugin::log( $this->fields ); // TODO
-    }
-
-    private function create_mautic_contact() {
+    private function send_to_mautic() {
         Plugin::log( $this->fields ); // TODO
     }
 
