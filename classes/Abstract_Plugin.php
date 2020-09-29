@@ -274,6 +274,25 @@ abstract class Abstract_Plugin {
         return rtrim( $lhs, $sep ) . $sep . ltrim( $rhs, $sep );
     }
 
+    public static final function stringify( $val ) {
+        if ( is_null( $val ) ) {
+            $out = 'NULL';
+        }
+        else if ( is_bool( $val ) ) {
+            $out = $val ? 'TRUE' : 'FALSE';
+        }
+        else if ( is_string( $val ) ) {
+            $out = '"' . $val . '"';
+        }
+        else if ( is_array( $val ) || is_object( $val ) ) {
+            $out = print_r( $val, true );
+        }
+        else {
+            $out = (string) $val;
+        }
+        return $out;
+    }
+
     // If `$message` isn't a string, its value is printed. If `$message` is
     // a string, it is written with each occurrence of '%s' replaced with
     // the value of the corresponding additional argument converted to string.
