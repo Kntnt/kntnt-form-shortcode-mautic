@@ -46,11 +46,13 @@ class Settings extends Abstract_Settings {
             'label' => __( "Email collision", 'kntnt-cta' ),
             'description' => __( 'Select what to do if the form contains a field mapped to the email field of Mautic and the values of these two are not identical for the current user.', 'kntnt-form-shortcode-mautic' ),
             'options' => [
-                'create' => "Create a new contact.",
-                'update' => 'Update contact email address. Save the old email address to the additional email field if provided below.',
-                'save' => 'Save the old email address to the additional email field if provided below.',
+                'update' => 'Update',
+                'save' => 'Save',
+                'save-bind' => 'Save and bind',
+                'switch' => 'Switch and save.',
+                'join' => 'Switch, save and bind.',
             ],
-            'default' => 'create',
+            'default' => 'update',
         ];
 
         $fields['additional_emails_field'] = [
