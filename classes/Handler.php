@@ -1,18 +1,17 @@
 <?php
 
-
 namespace Kntnt\Form_Shortcode_Mautic;
-
 
 use Mautic\Auth\ApiAuth;
 use Mautic\MauticApi;
-use stdClass;
 
 final class Handler {
 
-    private $mautic;
+    private $contacts_api;
 
-    private $segment; // TODO: UPDATE SEGMENT
+    private $segments_api;
+
+    private $segment_id;
 
     private $fields;
 
@@ -30,32 +29,48 @@ final class Handler {
     public function handle_post( $form_fields ) {
         Plugin::log( 'Form fields: %s', $form_fields );
         $this->additional_emails_field = Plugin::option( 'additional_emails_field' );
-        $this->setup_mautic_contacts_api();
+        $this->setup_mautic_contact_api();
+        $this->setup_mautic_segment_api();
         $this->set_segment( $form_fields );
         $this->set_fields( $form_fields );
-        $this->cookie_contact = $this->find_cookie_contact();
-        $this->form_contact = $this->find_form_contact();
+        $this->find_cookie_contact();
+        $this->find_form_contact();
         $this->prepare_fields();
-        $this->send_to_mautic();
+        $this->mautic_push();
     }
 
-    private function setup_mautic_contacts_api() {
+    private function setup_mautic_contact_api() {
         $api_url = Plugin::str_join( Plugin::option( 'url' ), 'api' );
         $auth = ( new ApiAuth )->newAuth( [
             'userName' => Plugin::option( 'username' ),
             'password' => Plugin::option( 'password' ),
         ], 'BasicAuth' );
-        $this->mautic = ( new MauticApi )->newApi( 'contacts', $auth, $api_url );
-        Plugin::log( 'API URL: %s', $api_url );
+        $this->contacts_api = ( new MauticApi )->newApi( 'contacts', $auth, $api_url );
+        Plugin::log( 'Mautic Contacts API at %s', $api_url );
+    }
+
+    private function setup_mautic_segment_api() {
+        $api_url = Plugin::str_join( Plugin::option( 'url' ), 'api' );
+        $auth = ( new ApiAuth )->newAuth( [
+            'userName' => Plugin::option( 'username' ),
+            'password' => Plugin::option( 'password' ),
+        ], 'BasicAuth' );
+        $this->segments_api = ( new MauticApi )->newApi( 'segments', $auth, $api_url );
+        Plugin::log( 'Mautic Segments API at %s', $api_url );
     }
 
     private function set_segment( $form_fields ) {
         if ( isset( $form_fields['mautic-segment'] ) ) {
-            $this->segment = $form_fields['mautic-segment'];
-            Plugin::log( 'Mautic segment: %s', $this->fields );
+            if ( is_numeric( $form_fields['mautic-segment'] ) && ( ( (int) $form_fields['mautic-segment'] ) ) == $form_fields['mautic-segment'] ) {
+                $this->segment_id = (int) $form_fields['mautic-segment'];
+            }
+            else {
+                $this->segment_id = $this->mautic_segment_id_from_search_string( $form_fields['mautic-segment'] );
+            }
+            Plugin::log( 'Mautic segment: %s', $this->segment_id );
         }
         else {
-            $this->segment = '';
+            $this->segment_id = null;
         }
     }
 
@@ -79,64 +94,35 @@ final class Handler {
     // failure, null is returned.
     private function find_cookie_contact() {
         $cookie_name = Plugin::option( 'cookie' );
-        if ( ! isset( $_COOKIE[ $cookie_name ] ) ) {
-            Plugin::log( 'No Mautic cookie %s found.', $cookie_name );
-            $contact = null;
+        if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+            $this->cookie_contact = $this->mautic_contact_by_id( $_COOKIE[ $cookie_name ] );
         }
         else {
-            $mautic_id = $_COOKIE[ $cookie_name ];
-            $response = $this->mautic->get( $mautic_id );
-            if ( isset( $response['errors'] ) && 404 == $response['errors'][0]['code'] && false === strpos( $response['errors'][0]['message'], 'Item was not found' ) ) {
-                $contact = null;
-                Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
-            }
-            else if ( ! isset( $response['contact'] ) ) {
-                $contact = null;
-                Plugin::log( 'No contact with id %s.', $mautic_id );
-            }
-            else {
-                $contact = $this->contact( $response['contact']['fields']['all'] );
-                Plugin::log( 'Found contact with id %s and email "%s".', $contact->id, $contact->email );
-            }
+            Plugin::log( 'No Mautic cookie %s found.', $cookie_name );
+            $this->cookie_contact = null;
         }
-        Plugin::log( 'Cookie contact: %s', Plugin::stringify( $contact ) );
-        return $contact;
     }
 
     // If the form contains a field mapped to Mautic's email-field, this method
-    // returns contact with the attribute `email` set to the provided email
-    // address. The method also lookup the email address with Mautic. If found,
-    // the attribute `id` is assigned the found contact's id, otherwise it's
-    // null. If a field for additional emails is provided in the settings,
+    // returns a contact object with the attribute `email` set to the provided
+    // email address. The method also lookup the email address with Mautic. If
+    // found, the attribute `id` is assigned the found contact's id, otherwise
+    //  it's null. If a field for additional emails is provided in the settings,
     // a corresponding attribute exists with an array of additional emails.
     // If the form don't contains a field mapped to Mautic's email-field,
     // or in case of communication failure, null is returned.
     private function find_form_contact() {
         if ( ! isset( $this->fields['email'] ) || ! ( $email = $this->fields['email'] ) ) {
-            $contact = null;
+            $this->form_contact = null;
             Plugin::log( 'No form field is mapped to the Mautic email field.' );
         }
         else if ( isset( $this->cookie_contact->email ) && $email == $this->cookie_contact->email ) {
-            $contact = $this->cookie_contact;
+            $this->form_contact = $this->cookie_contact;
             Plugin::log( 'Provided email address is identical to the tracked users email address i Mautic.' );
         }
         else {
-            $response = $this->mautic->getList( "email:$email" );
-            if ( ! isset( $response['contacts'] ) ) {
-                $contact = null;
-                Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
-            }
-            else if ( 0 == $response['total'] ) {
-                $contact = $this->contact( [ 'email' => $email ] );
-                Plugin::log( 'No contact with email "%s".', $email );
-            }
-            else {
-                $contact = $this->contact( array_shift( $response['contacts'] )['fields']['all'] );
-                Plugin::log( 'Found contact with id %s and email "%s".', $contact->id, $contact->email );
-            }
+            $this->form_contact = $this->mautic_contact_by_email( $email );
         }
-        Plugin::log( 'Form contact: %s', Plugin::stringify( $contact ) );
-        return $contact;
     }
 
     private function prepare_fields() {
@@ -328,7 +314,7 @@ final class Handler {
         }
     }
 
-    function copy_form_fields_to( &$contact, $include_email ) {
+    private function copy_form_fields_to( &$contact, $include_email ) {
 
         // Copy all fields except the fields fore mail and additional emails.
         $modified_contact = (object) ( ( (array) $contact ) + $this->fields );
@@ -358,74 +344,177 @@ final class Handler {
         }
     }
 
-    private function send_to_mautic() {
+    private function mautic_segment_id_from_search_string( $search_string ) {
+        $search_string = "+$search_string";
+        $response = $this->segments_api->getList( $search_string );
+        if ( isset( $response['errors'] ) ) {
+            $segment_id = null;
+            Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+        }
+        else if ( 0 == $response['total'] ) {
+            $segment_id = null;
+            Plugin::log( 'No segment matched the search string "%s".', $search_string );
+        }
+        else {
+            $segment = array_shift( $response['lists'] );
+            $segment_id = $segment['id'];
+            Plugin::log( 'Found segment "%s" (%s) with id %s.', $segment['name'], $segment['alias'], $segment['id'] );
+        }
+        return $segment_id;
+    }
 
-        if ( $this->cookie_contact->push ) {
+    private function mautic_contact_by_id( $mautic_id ) {
+        $response = $this->contacts_api->get( $mautic_id );
+        if ( isset( $response['errors'] ) && 404 == $response['errors'][0]['code'] && false !== strpos( $response['errors'][0]['message'], 'Item was not found' ) ) {
+            $contact = null;
+            Plugin::log( 'No contact with id %s.', $mautic_id );
+        }
+        else if ( isset( $response['errors'] ) ) {
+            $contact = null;
+            Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+        }
+        else {
+            $contact = $this->contact( $response['contact']['fields']['all'] );
+            Plugin::log( 'Found contact with id %s and email "%s".', $contact->id, $contact->email );
+        }
+        return $contact;
+    }
+
+    private function mautic_contact_by_email( $email ) {
+        $search_string = "+email:$email";
+        $response = $this->contacts_api->getList( $search_string );
+        if ( isset( $response['errors'] ) ) {
+            $contact = null;
+            Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+        }
+        else if ( 0 == $response['total'] ) {
+            $contact = $this->contact( [ 'email' => $email ] );
+            Plugin::log( 'No contact matched the search string "%s".', $search_string );
+        }
+        else {
+            $segment = array_shift( $response['contacts'] );
+            $contact = $segment['fields']['all'];
+            Plugin::log( 'Found contact with id %s and email "%s".', $contact->id, $contact->email );
+        }
+        return $contact;
+    }
+
+    private function mautic_push() {
+
+        if ( isset( $this->cookie_contact ) && $this->cookie_contact->push ) {
             Plugin::log( 'Sending cookie contact to Mautic' );
-            $this->update_contact( $this->cookie_contact );
+            $this->mautic_update_contact( $this->cookie_contact );
         }
 
-        if ( $this->form_contact->push ) {
+        if ( isset( $this->form_contact ) && $this->form_contact->push ) {
             Plugin::log( 'Sending form contact to Mautic' );
             if ( $this->form_contact->id ) {
-                $this->update_contact( $this->form_contact );
+                $this->mautic_update_contact( $this->form_contact );
             }
             else if ( $this->form_contact->create ) {
-                $this->create_contact( $this->form_contact );
+                $this->mautic_create_contact( $this->form_contact );
             }
         }
 
     }
 
-    private function create_contact( $contact ) {
+    private function mautic_create_contact( $contact ) {
 
-        $contact = self::mautic_contact( $contact );
+        $contact = $this->mautic_contact( $contact );
 
         Plugin::log( 'Send CREATE request to Mautic for %s', $contact );
 
-        // $contact = $this->mautic->create( $contact );
+        $response = $this->contacts_api->create( $contact );
+        if ( isset( $response['contact'] ) ) {
+            Plugin::error( 'Successfully created Mautic contact with id %s.', $response['contact']['id'] );
+            $this->mautic_add_contact_to_segment( $response['contact']['id'] );
+        }
+        else {
+            Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+        }
 
     }
 
-    private function update_contact( $contact ) {
+    private function mautic_update_contact( $contact ) {
 
         $id = $contact->id;
-        $contact = self::mautic_contact( $contact );
+        $contact = $this->mautic_contact( $contact );
 
         Plugin::log( 'Send UPDATE request to Mautic for %s', $contact );
 
-        // $contact = $this->mautic->edit( $id, $contact, false );
+        $response = $this->contacts_api->edit( $id, $contact, false );
+        if ( isset( $response['contact'] ) ) {
+            Plugin::error( 'Successfully updated Mautic contact with id %s.', $response['contact']['id'] );
+            $this->mautic_add_contact_to_segment( $response['contact']['id'] );
+        }
+        else {
+            Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+        }
+
+    }
+
+    private function mautic_add_contact_to_segment( $contact_id ) {
+
+        $response = $this->segments_api->addContact( $this->segment_id, $contact_id );
+        if ( isset( $response['errors'] ) && 404 == $response['errors'][0]['code'] && false === strpos( $response['errors'][0]['message'], 'Item was not found' ) ) {
+            Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+        }
+        else if ( ! isset( $response['success'] ) ) {
+            Plugin::log( 'No segment with id %s.', $this->segment_id );
+        }
+        else {
+            Plugin::error( 'Successfully added contact %s to segment %s.', $contact_id, $this->segment_id );
+        }
 
     }
 
     private function contact( $contact ) {
-        // Constructs a contact object.
-        $contact_obj = new stdClass;
+
+        $contact_obj = new \stdClass;
+
         $contact_obj->create = false;
         $contact_obj->push = false;
+
         $contact_obj->id = isset( $contact['id'] ) ? $contact['id'] : null;
+
         $contact_obj->email = isset( $contact['email'] ) ? $contact['email'] : null;
+
         if ( $this->additional_emails_field ) {
             $contact_obj->{$this->additional_emails_field} = isset( $contact[ $this->additional_emails_field ] ) ? preg_split( '/\s+/', $contact[ $this->additional_emails_field ] ) : [];
         }
+
         return $contact_obj;
+
     }
 
-    private static function mautic_contact( $contact ) {
+    private function mautic_contact( $contact ) {
+
         $contact->ipAddress = $_SERVER['REMOTE_ADDR'];
         $contact->lastActive = gmdate( 'Y-m-d H:m:i' );
+
         unset( $contact->create );
         unset( $contact->push );
+
         if ( empty( $contact->id ) ) {
             unset( $contact->id );
         }
+
         if ( empty( $contact->email ) ) {
             unset( $contact->email );
         }
-        if ( empty( $contact->additional_emails_field ) ) {
-            unset( $contact->additional_emails_field );
+
+        if ( $this->additional_emails_field ) {
+            $additional_emails = &$contact->{$this->additional_emails_field};
+            if ( empty( $additional_emails ) ) {
+                unset( $additional_emails );
+            }
+            else {
+                $additional_emails = join( "\n", $additional_emails );
+            }
         }
+
         return (array) $contact;
+
     }
 
 }
