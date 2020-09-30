@@ -20,12 +20,16 @@ final class Handler {
 
     private $form_contact;
 
+    private $additional_emails_field;
+
+
     public function run() {
         add_action( 'kntnt-form-shortcode-post', [ $this, 'handle_post' ] );
     }
 
     public function handle_post( $form_fields ) {
         Plugin::log( 'Form fields: %s', $form_fields );
+        $this->additional_emails_field = Plugin::option( 'additional_emails_field' );
         $this->setup_mautic_contacts_api();
         $this->set_segment( $form_fields );
         $this->set_fields( $form_fields );
@@ -137,105 +141,161 @@ final class Handler {
 
     private function prepare_fields() {
 
-        // Mautic alias for a text area custom filed to hold additional email
-        // addresses. Leave empty to disable this feature.
-        $additional_emails_field = Plugin::option( 'additional_emails_field' );
-
-        // What to do if the form contains a field mapped to the email field of
-        // Mautic and the values of these two are not identical for the current
-        // user.
-        //
-        // - create: Create a new contact.
-        // - update: Update contact email address. Save the old email address to
-        //           the additional email field if provided below.
-        // - save:   Save the email address provided to the additional email
-        //           field if provided.
-        $email_collision_handling = Plugin::option( 'email_collision_handling', 'create' );
-
         if ( $this->cookie_contact && $this->cookie_contact->id ) {
             // Mautic is currently tracking the visitor and identified s/he by
             // id from the cookie.
 
             if ( $this->form_contact && $this->form_contact->email && $this->form_contact->email != $this->cookie_contact->email ) {
                 // An email address have been provided that differs from the
-                // email address that mautic as associated with the visitor.
+                // email address that Mautic has associated with the visitor.
+                // We need to manage the conflicting email addresses according
+                // to settings.
 
-                if ( $this->form_contact->is ) {
-                    // Mautic has tracked the visitor in the past when s/he
-                    // was identified by the provided email address.
+                // What to do if the form contains a field mapped to the email
+                // field of Mautic and the values of these two are not identical
+                // for the current user.
+                $email_collision_handling = Plugin::option( 'email_collision_handling', 'update' );
 
-                    // TODO TODO  TODO  TODO  TODO  TODO  TODO  TODO  TODO
+                if ( 'save' == $email_collision_handling ) {
+                    // Push form fields, except the field mapped to the email
+                    // field of Mautic, to the cookie contact. If a field for
+                    // additional emails is provided, save the form email
+                    // address in that field. If Mautic already has the form
+                    // email on record, it will leave it as it is; thus
+                    // maintaining two independent contacts for the same
+                    // visitor.
+
+                    // Copy form fields, excluding email address, to cookie
+                    // contact.
+                    $this->copy_form_fields_to( $this->cookie_contact, false );
+
+                    // Add the form email address in the field for additional
+                    // emails, if provided.
+                    $this->if_additional_emails_add( $this->fields->email, $this->cookie_contact );
+
+                    // Allow push to only the cookie contact.
+                    $this->cookie_contact->push = true;
+                    $this->form_contact->push = false;
+
+                }
+                else if ( 'save-bind' == $email_collision_handling ) {
+                    // Works as 'save' with following addition: If Mautic
+                    // already has the form email on record, and a field for
+                    // additional emails is provided, the cookie contact email
+                    // address is saved in that field for the form contact.
+
+                    // Add the email address of cookie contact to the additional
+                    // emails field of the form contact.
+                    $this->if_additional_emails_add( $this->cookie_contact->email, $this->form_contact );
+
+                    // Copy form fields, excluding email address, to cookie
+                    // contact.
+                    $this->copy_form_fields_to( $this->cookie_contact, false );
+
+                    // Save the form email address in the field for additional
+                    // emails, if provided.
+                    $this->if_additional_emails_add( $this->fields->email, $this->cookie_contact );
+
+                    // Allow push to both the cookie contact and the form
+                    // contact.
+                    $this->cookie_contact->push = true;
+                    $this->form_contact->push = true;
+
+                }
+                else if ( 'update' == $email_collision_handling ) {
+                    // Push form fields, including the field mapped to the email
+                    // field of Mautic, to the cookie contact. If a field for
+                    // additional emails is provided, save the old cookie
+                    // contact email address in that field. If Mautic already
+                    // has the form email on record, Mautic will merge the two
+                    // contacts.
+
+                    // Save the form email address in the field for additional
+                    // emails, if provided.
+                    $this->if_additional_emails_add( $this->cookie_contact->email, $this->cookie_contact );
+
+                    // Copy form fields, including email address, to cookie
+                    // contact.
+                    $this->copy_form_fields_to( $this->cookie_contact, true );
+
+                    // Allow push to only the cookie contact.
+                    $this->cookie_contact->push = true;
+                    $this->form_contact->push = false;
+
+                }
+                else if ( 'switch' == $email_collision_handling ) {
+                    // Create the form contact if it doesn't exists. Push form
+                    // fields to the form contact. If a field for additional
+                    // emails is provided, save the original cookie contact
+                    // email address in that field. Notice that Mautic will
+                    // leave the cookie contact as it is; thus maintaining two
+                    // independent contacts for the same visitor. Thus, the
+                    // 'switch' option acts as the 'save' option but with the
+                    // cookie and form contact switched.
+
+                    // Copy form fields, excluding email address, to cookie
+                    // contact.
+                    $this->copy_form_fields_to( $this->form_contact );
+
+                    // Add the cookie contact email address in the field for
+                    // additional emails, if provided.
+                    $this->if_additional_emails_add( $this->cookie_contact->email, $this->form_contact );
+
+                    // Allow push to only the form contact.
+                    $this->cookie_contact->push = false;
+                    $this->form_contact->push = true;
+
+                    // Allow Mautic contact to be created if missing.
+                    $this->form_contact->create = true;
+
+                }
+                else if ( 'switch-bind' == $email_collision_handling ) {
+                    // Works as 'switch' with following addition: If a field for
+                    // additional emails is provided, the form address is saved
+                    // in that field for the cookie contact. Thus, the 'bind'
+                    // option acts as the 'save-bind' option but with the cookie
+                    // and form contact switched.
+
+                    // Copy form fields, excluding email address, to cookie
+                    // contact.
+                    $this->copy_form_fields_to( $this->form_contact, false );
+
+                    // Add the cookie contact email address in the field for
+                    // additional emails, if provided.
+                    $this->if_additional_emails_add( $this->cookie_contact->email, $this->form_contact );
+
+                    // Add the email address of form contact to the additional
+                    // emails field of the cookie contact.
+                    $this->if_additional_emails_add( $this->form_contact->email, $this->cookie_contact );
+
+                    // Allow push to only the form contact.
+                    $this->cookie_contact->push = true;
+                    $this->form_contact->push = true;
+
+                    // Allow creation of object if missing.
+                    if ( is_null( $this->form_contact->id ) ) {
+                        $this->form_contact->id = '';
+                    }
 
                 }
                 else {
-                    // Mautic has no record of the provided email address.
-
-                    if ( 'save' == $email_collision_handling && $additional_emails_field ) {
-                        // The form fields should be pushed to cookie contact
-                        // after the provided email address is moved to the
-                        // field of additional email addresses.
-
-                        // The fields should be pushed to the cookie contact.
-                        $this->fields['id'] = $this->cookie_contact->id;
-
-                        // Move the form email address to the field of additional
-                        // email addresses
-                        $this->fields[ $additional_emails_field ] = $this->array_union( $this->cookie_contact->$additional_emails_field, [ $this->form_contact->email ] );
-                        unset( $this->fields['email'] );
-
-                    }
-                    else if ( 'update' == $email_collision_handling ) {
-                        // The form fields should be pushed to cookie contact
-                        // after the provided email address replace the cookie
-                        // contact email addresses which should be saved in a
-                        // field of additional email addresses if provided.
-
-                        // The fields should be pushed to the cookie contact.
-                        $this->fields['id'] = $this->cookie_contact->id;
-
-                        // If field of additional email addresses is provided,
-                        // save the cookie contact email address to it.
-                        if ( $additional_emails_field ) {
-                            $this->fields[ $additional_emails_field ] = [ $this->cookie_contact->email ];
-                        }
-
-                        // Replace the cookie contact email address with the
-                        // form email address,
-                        $this->cookie_contact->email = $this->form_contact->email;
-
-                    }
-                    else {
-                        // Create new Mautic contact from form fields and save
-                        // the cookie contact email address as additional email
-                        // address if such field is provided.
-
-                        // The fields should be pushed to a new contact.
-                        $this->fields['id'] = null;
-
-                        // If field of additional email addresses is provided,
-                        // save the cookie contact email address to it.
-                        if ( $additional_emails_field ) {
-                            $this->fields[ $additional_emails_field ] = [ $this->cookie_contact->email ];
-                        }
-
-                    }
-
+                    assert( false );
                 }
 
             }
             else {
                 // Either we don't have an email address provide by the form,
                 // or it's identical to the tracked visitors email address.
-                // Either way, the form fields should be pushed to cookie
+                // Either way, push form fields, except the field mapped to the
+                // email field of Mautic, to the cookie contact.
+
+                // Copy form fields, excluding email address, to cookie
                 // contact.
+                $this->copy_form_fields_to( $this->cookie_contact, false );
 
-                // The fields should be pushed to the cookie contact.
-                $this->fields['id'] = $this->cookie_contact->id;
-
-                // Since the cookie contact already has the current
-                // users email address, we can as a precaution remove
-                // the email filed.
-                unset( $this->fields['email'] );
+                // Allow push to only the cookie contact.
+                $this->cookie_contact->push = true;
+                $this->form_contact->push = false;
 
             }
 
@@ -246,26 +306,73 @@ final class Handler {
             if ( $this->form_contact && $this->form_contact->id ) {
                 // The provided email address is associated with a user
 
-                // The fields should be pushed to the contact associated with
-                // the provided email.
-                $this->fields['id'] = $this->form_contact->id;
+                // Copy form fields, including email address, to cookie
+                // contact.
+                $this->copy_form_fields_to( $this->form_contact, true );
+
+                // Allow push to only the form contact.
+                $this->cookie_contact->push = false;
+                $this->form_contact->push = true;
+
+                // Allow Mautic contact to be created if missing.
+                $this->form_contact->create = true;
 
             }
 
         }
     }
 
-    private function send_to_mautic() {
-        Plugin::log( $this->fields ); // TODO
+    function copy_form_fields_to( $contact_obj, $include_email ) {
+
+        // Copy all fields except the fields fore mail and additional emails.
+        $contact_obj = (object) ( ( (array) $contact_obj ) + $this->fields );
+
+        if ( $include_email && isset( $this->fields['email'] ) ) {
+
+            // Include the email field
+            $contact_obj->email = $this->fields['email'];
+
+        }
+
+        // Merge additional emails in the form into the field of additional
+        // emails and Remove contact email from the field.
+        add_additional_emails( $contact_obj, $this->additional_emails_field );
+
+        return $contact_obj;
+
     }
 
-    // Constructs a contact object.
+    private function if_additional_emails_add( $emails, $contact_obj ) {
+
+        if ( $this->additional_emails_field && ! empty( $emails ) ) {
+
+            // Merge additional emails into the field of additional emails.
+            $contact_obj->{$this->additional_emails_field} = $this->array_union( $contact_obj->{$this->additional_emails_field}, preg_split( '/\s+/', $emails ) );
+
+            // Remove contact email from the field of additional emails.
+            if ( ( $key = array_search( $contact_obj->email, $contact_obj->{$this->additional_emails_field} ) ) !== false ) {
+                unset( $contact_obj->{$this->additional_emails_field}[ $key ] );
+            }
+
+        }
+
+    }
+
+    private function send_to_mautic() {
+        // TODO
+        Plugin::log('Cookie contact: %s', $this->cookie_contact);
+        Plugin::log('Cookie contact: %s', $this->form_contact);
+    }
+
     private function contact( $contact ) {
+        // Constructs a contact object.
         $contact_obj = new stdClass;
+        $contact_obj->create = false;
+        $contact_obj->push = false;
         $contact_obj->id = isset( $contact['id'] ) ? $contact['id'] : null;
         $contact_obj->email = isset( $contact['email'] ) ? $contact['email'] : null;
-        if ( $additional_emails_field = Plugin::option( 'additional_emails_field' ) ) {
-            $contact_obj->{$additional_emails_field} = isset( $contact[ $additional_emails_field ] ) ? preg_split( '/\s+/', $contact[ $additional_emails_field ] ) : [];
+        if ( $this->additional_emails_field ) {
+            $contact_obj->{$this->additional_emails_field} = isset( $contact[ $this->additional_emails_field ] ) ? preg_split( '/\s+/', $contact[ $this->additional_emails_field ] ) : [];
         }
         return $contact_obj;
     }
