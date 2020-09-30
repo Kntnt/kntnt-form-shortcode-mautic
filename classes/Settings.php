@@ -43,16 +43,16 @@ class Settings extends Abstract_Settings {
 
         $fields['email_collision_handling'] = [
             'type' => 'select',
-            'label' => __( "Email collision", 'kntnt-cta' ),
-            'description' => __( 'Select what to do if the form contains a field mapped to the email field of Mautic and the values of these two are not identical for the current user.', 'kntnt-form-shortcode-mautic' ),
+            'label' => __( "Email collision handling", 'kntnt-cta' ),
             'options' => [
-                'update' => 'Update',
                 'save' => 'Save',
-                'save-bind' => 'Save and bind',
-                'switch' => 'Switch and save.',
-                'join' => 'Switch, save and bind.',
+                'save-bind' => 'Save and cross-reference',
+                'update' => 'Update',
+                'switch' => 'Switch',
+                'switch-bind' => 'Switch and cross-reference',
             ],
             'default' => 'update',
+            'description' => __( 'Select what to do if the form contains a <em>new email</em> that differs from the <em>old email</em> of the tracked visitor. Select <strong>Save</strong> to save the new email in the <em>additional emails field</em> (see below) of the old email contact. Select <strong>Save and cross-reference</strong> to save the new email in the additional emails field of the old email contact, and to save the old email in the additional emails field of the new email contact (provided it exists). Select <strong>Update</strong> to let new email replace old email which is saved the additional emails field. This should cause Mautic to merge the tow contacts. Select <strong>Switch</strong> to save the old email in the additional emails field of the new email contact, which is created if necessary. Finally, select <strong>Switch and cross-reference</strong> to save the old email in the additional emails field of the new email contact, created if necessary, and to save the new email in the additional emails field of the old email contact.', 'kntnt-form-shortcode-mautic' ),
         ];
 
         $fields['additional_emails_field'] = [
@@ -63,7 +63,7 @@ class Settings extends Abstract_Settings {
 
         $fields['cookie'] = [
             'type' => 'text',
-            'label' => __( "ID cookie", 'kntnt-cta' ),
+            'label' => __( "Mautic ID cookie", 'kntnt-cta' ),
             'description' => __( 'The name of Mautic\'s cookie with contact id.', 'kntnt-form-shortcode-mautic' ),
             'default' => 'mtc_id',
         ];
