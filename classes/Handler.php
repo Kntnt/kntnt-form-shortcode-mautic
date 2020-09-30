@@ -361,18 +361,16 @@ final class Handler {
     private function send_to_mautic() {
 
         if ( $this->cookie_contact->push ) {
-            Plugin::log( 'Update cookie contact' );
+            Plugin::log( 'Sending cookie contact to Mautic' );
             $this->update_contact( $this->cookie_contact );
         }
 
-        Plugin::log( 'Form contact: %s', $this->form_contact );
         if ( $this->form_contact->push ) {
+            Plugin::log( 'Sending form contact to Mautic' );
             if ( $this->form_contact->id ) {
-                Plugin::log( 'Update form contact' );
                 $this->update_contact( $this->form_contact );
             }
             else if ( $this->form_contact->create ) {
-                Plugin::log( 'Create form contact' );
                 $this->create_contact( $this->form_contact );
             }
         }
@@ -381,7 +379,7 @@ final class Handler {
 
     private function create_contact( $contact ) {
 
-        $contact = self::clean_contact( $contact );
+        $contact = self::mautic_contact( $contact );
 
         Plugin::log( 'Send CREATE request to Mautic for %s', $contact );
 
@@ -392,7 +390,7 @@ final class Handler {
     private function update_contact( $contact ) {
 
         $id = $contact->id;
-        $contact = self::clean_contact( $contact );
+        $contact = self::mautic_contact( $contact );
 
         Plugin::log( 'Send UPDATE request to Mautic for %s', $contact );
 
@@ -413,7 +411,9 @@ final class Handler {
         return $contact_obj;
     }
 
-    private static function clean_contact( $contact ) {
+    private static function mautic_contact( $contact ) {
+        $contact->ipAddress = $_SERVER['REMOTE_ADDR'];
+        $contact->lastActive = gmdate( 'Y-m-d H:m:i' );
         unset( $contact->create );
         unset( $contact->push );
         if ( empty( $contact->id ) ) {
