@@ -86,7 +86,7 @@ final class Handler {
         else {
             $mautic_id = $_COOKIE[ $cookie_name ];
             $response = $this->mautic->get( $mautic_id );
-            if ( 404 == $response['errors'][0]['code'] && false === strpos( $response['errors'][0]['message'], 'Item was not found' ) ) {
+            if ( isset( $response['errors'] ) && 404 == $response['errors'][0]['code'] && false === strpos( $response['errors'][0]['message'], 'Item was not found' ) ) {
                 $contact = null;
                 Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
             }
@@ -116,7 +116,7 @@ final class Handler {
             $contact = null;
             Plugin::log( 'No form field is mapped to the Mautic email field.' );
         }
-        else if ( $email == $this->cookie_contact->email ) {
+        else if ( isset( $this->cookie_contact->email ) && $email == $this->cookie_contact->email ) {
             $contact = $this->cookie_contact;
             Plugin::log( 'Provided email address is identical to the tracked users email address i Mautic.' );
         }
@@ -145,11 +145,15 @@ final class Handler {
             // Mautic is currently tracking the visitor and identified s/he by
             // id from the cookie.
 
+            Plugin::log( 'Mautic is currently tracking the visitor and identified s/he by id %s from the cookie.', $this->cookie_contact->id );
+
             if ( $this->form_contact && $this->form_contact->email && $this->form_contact->email != $this->cookie_contact->email ) {
                 // An email address have been provided that differs from the
                 // email address that Mautic has associated with the visitor.
                 // We need to manage the conflicting email addresses according
                 // to settings.
+
+                Plugin::log( 'Conflicting email addresses; form contact email address %s differs from cookie contact email address %s.', $this->form_contact->email, $this->cookie_contact->email );
 
                 // What to do if the form contains a field mapped to the email
                 // field of Mautic and the values of these two are not identical
@@ -165,17 +169,18 @@ final class Handler {
                     // maintaining two independent contacts for the same
                     // visitor.
 
+                    Plugin::log( 'Managing conflict by the SAVE rule.' );
+
                     // Copy form fields, excluding email address, to cookie
                     // contact.
                     $this->copy_form_fields_to( $this->cookie_contact, false );
 
                     // Add the form email address in the field for additional
                     // emails, if provided.
-                    $this->if_additional_emails_add( $this->fields->email, $this->cookie_contact );
+                    $this->if_additional_emails_add( $this->fields['email'], $this->cookie_contact );
 
                     // Allow push to only the cookie contact.
                     $this->cookie_contact->push = true;
-                    $this->form_contact->push = false;
 
                 }
                 else if ( 'save-bind' == $email_collision_handling ) {
@@ -183,6 +188,8 @@ final class Handler {
                     // already has the form email on record, and a field for
                     // additional emails is provided, the cookie contact email
                     // address is saved in that field for the form contact.
+
+                    Plugin::log( 'Managing conflict by the SAVE-BIND rule.' );
 
                     // Add the email address of cookie contact to the additional
                     // emails field of the form contact.
@@ -194,7 +201,7 @@ final class Handler {
 
                     // Save the form email address in the field for additional
                     // emails, if provided.
-                    $this->if_additional_emails_add( $this->fields->email, $this->cookie_contact );
+                    $this->if_additional_emails_add( $this->fields['email'], $this->cookie_contact );
 
                     // Allow push to both the cookie contact and the form
                     // contact.
@@ -210,6 +217,8 @@ final class Handler {
                     // has the form email on record, Mautic will merge the two
                     // contacts.
 
+                    Plugin::log( 'Managing conflict by the UPDATE rule.' );
+
                     // Save the form email address in the field for additional
                     // emails, if provided.
                     $this->if_additional_emails_add( $this->cookie_contact->email, $this->cookie_contact );
@@ -220,7 +229,6 @@ final class Handler {
 
                     // Allow push to only the cookie contact.
                     $this->cookie_contact->push = true;
-                    $this->form_contact->push = false;
 
                 }
                 else if ( 'switch' == $email_collision_handling ) {
@@ -233,16 +241,17 @@ final class Handler {
                     // 'switch' option acts as the 'save' option but with the
                     // cookie and form contact switched.
 
+                    Plugin::log( 'Managing conflict by the SWITCH rule.' );
+
                     // Copy form fields, excluding email address, to cookie
                     // contact.
-                    $this->copy_form_fields_to( $this->form_contact );
+                    $this->copy_form_fields_to( $this->form_contact, false );
 
                     // Add the cookie contact email address in the field for
                     // additional emails, if provided.
                     $this->if_additional_emails_add( $this->cookie_contact->email, $this->form_contact );
 
                     // Allow push to only the form contact.
-                    $this->cookie_contact->push = false;
                     $this->form_contact->push = true;
 
                     // Allow Mautic contact to be created if missing.
@@ -255,6 +264,8 @@ final class Handler {
                     // in that field for the cookie contact. Thus, the 'bind'
                     // option acts as the 'save-bind' option but with the cookie
                     // and form contact switched.
+
+                    Plugin::log( 'Managing conflict by the SWITCH-BIND rule.' );
 
                     // Copy form fields, excluding email address, to cookie
                     // contact.
@@ -272,10 +283,8 @@ final class Handler {
                     $this->cookie_contact->push = true;
                     $this->form_contact->push = true;
 
-                    // Allow creation of object if missing.
-                    if ( is_null( $this->form_contact->id ) ) {
-                        $this->form_contact->id = '';
-                    }
+                    // Allow Mautic contact to be created if missing.
+                    $this->form_contact->create = true;
 
                 }
                 else {
@@ -289,13 +298,14 @@ final class Handler {
                 // Either way, push form fields, except the field mapped to the
                 // email field of Mautic, to the cookie contact.
 
+                Plugin::log( 'Either we don\'t have an email address provide by the form, or it\'s identical to the tracked visitors email address.' );
+
                 // Copy form fields, excluding email address, to cookie
                 // contact.
                 $this->copy_form_fields_to( $this->cookie_contact, false );
 
                 // Allow push to only the cookie contact.
                 $this->cookie_contact->push = true;
-                $this->form_contact->push = false;
 
             }
 
@@ -303,65 +313,91 @@ final class Handler {
         else {
             // Mautic isn't tracking the visitor.
 
-            if ( $this->form_contact && $this->form_contact->id ) {
-                // The provided email address is associated with a user
+            Plugin::log( 'Mautic isn\'t tracking the visitor.' );
 
-                // Copy form fields, including email address, to cookie
-                // contact.
-                $this->copy_form_fields_to( $this->form_contact, true );
+            // Copy form fields, including email address, to cookie
+            // contact.
+            $this->copy_form_fields_to( $this->form_contact, true );
 
-                // Allow push to only the form contact.
-                $this->cookie_contact->push = false;
-                $this->form_contact->push = true;
+            // Allow push to only the form contact.
+            $this->form_contact->push = true;
 
-                // Allow Mautic contact to be created if missing.
-                $this->form_contact->create = true;
-
-            }
+            // Allow Mautic contact to be created if missing.
+            $this->form_contact->create = true;
 
         }
     }
 
-    function copy_form_fields_to( $contact_obj, $include_email ) {
+    function copy_form_fields_to( &$contact, $include_email ) {
 
         // Copy all fields except the fields fore mail and additional emails.
-        $contact_obj = (object) ( ( (array) $contact_obj ) + $this->fields );
+        $modified_contact = (object) ( ( (array) $contact ) + $this->fields );
 
         if ( $include_email && isset( $this->fields['email'] ) ) {
 
             // Include the email field
-            $contact_obj->email = $this->fields['email'];
-
+            $modified_contact->email = $this->fields['email'];
         }
 
         // Merge additional emails in the form into the field of additional
         // emails and Remove contact email from the field.
-        add_additional_emails( $contact_obj, $this->additional_emails_field );
+        if ( isset( $this->fields[ $this->additional_emails_field ] ) ) {
+            $this->if_additional_emails_add( $this->fields[ $this->additional_emails_field ], $modified_contact );
+        }
 
-        return $contact_obj;
+        // Return the modified contact.
+        $contact = $modified_contact;
 
     }
 
-    private function if_additional_emails_add( $emails, $contact_obj ) {
-
+    private function if_additional_emails_add( $emails, &$contact_obj ) {
         if ( $this->additional_emails_field && ! empty( $emails ) ) {
-
             // Merge additional emails into the field of additional emails.
-            $contact_obj->{$this->additional_emails_field} = $this->array_union( $contact_obj->{$this->additional_emails_field}, preg_split( '/\s+/', $emails ) );
+            $union_of_emails = array_keys( array_flip( $contact_obj->{$this->additional_emails_field} ) + array_flip( preg_split( '/\s+/', $emails ) ) );
+            $contact_obj->{$this->additional_emails_field} = $union_of_emails;
+        }
+    }
 
-            // Remove contact email from the field of additional emails.
-            if ( ( $key = array_search( $contact_obj->email, $contact_obj->{$this->additional_emails_field} ) ) !== false ) {
-                unset( $contact_obj->{$this->additional_emails_field}[ $key ] );
+    private function send_to_mautic() {
+
+        if ( $this->cookie_contact->push ) {
+            Plugin::log( 'Update cookie contact' );
+            $this->update_contact( $this->cookie_contact );
+        }
+
+        Plugin::log( 'Form contact: %s', $this->form_contact );
+        if ( $this->form_contact->push ) {
+            if ( $this->form_contact->id ) {
+                Plugin::log( 'Update form contact' );
+                $this->update_contact( $this->form_contact );
             }
-
+            else if ( $this->form_contact->create ) {
+                Plugin::log( 'Create form contact' );
+                $this->create_contact( $this->form_contact );
+            }
         }
 
     }
 
-    private function send_to_mautic() {
-        // TODO
-        Plugin::log('Cookie contact: %s', $this->cookie_contact);
-        Plugin::log('Cookie contact: %s', $this->form_contact);
+    private function create_contact( $contact ) {
+
+        $contact = self::clean_contact( $contact );
+
+        Plugin::log( 'Send CREATE request to Mautic for %s', $contact );
+
+        // $contact = $this->mautic->create( $contact );
+
+    }
+
+    private function update_contact( $contact ) {
+
+        $id = $contact->id;
+        $contact = self::clean_contact( $contact );
+
+        Plugin::log( 'Send UPDATE request to Mautic for %s', $contact );
+
+        // $contact = $this->mautic->edit( $id, $contact, false );
+
     }
 
     private function contact( $contact ) {
@@ -377,8 +413,19 @@ final class Handler {
         return $contact_obj;
     }
 
-    private function array_union( $array_1, $array_2 ) {
-        return array_keys( array_flip( $array_1 ) + array_flip( $array_2 ) );
+    private static function clean_contact( $contact ) {
+        unset( $contact->create );
+        unset( $contact->push );
+        if ( empty( $contact->id ) ) {
+            unset( $contact->id );
+        }
+        if ( empty( $contact->email ) ) {
+            unset( $contact->email );
+        }
+        if ( empty( $contact->additional_emails_field ) ) {
+            unset( $contact->additional_emails_field );
+        }
+        return (array) $contact;
     }
 
 }
