@@ -58,7 +58,7 @@ class Settings extends Abstract_Settings {
         $fields['additional_emails_field'] = [
             'type' => 'text',
             'label' => __( "Additional emails field", 'kntnt-cta' ),
-            'description' => __( 'Mautic alias for a text area custom filed to hold additional email addresses. Leave empty to disable this feature.', 'kntnt-form-shortcode-mautic' ),
+            'description' => __( 'Mautic alias for a text area custom field to hold additional email addresses. Leave empty to disable this feature.', 'kntnt-form-shortcode-mautic' ),
         ];
 
         $fields['cookie'] = [
