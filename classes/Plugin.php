@@ -7,6 +7,9 @@ define( 'KNTNT_FORM_SHORTCODE_MAUTIC_DEBUG', true );
 
 final class Plugin extends Abstract_Plugin {
 
+    use Log;
+    use Option;
+
     public static function peel_off( $key, &$array ) {
         if ( array_key_exists( $key, $array ) ) {
             $val = $array[ $key ];

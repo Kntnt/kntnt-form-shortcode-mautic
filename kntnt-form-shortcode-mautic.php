@@ -19,7 +19,7 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 // Uncomment following line to debug this plugin.
-// define( 'KNTNT_FORM_SHORTCODE_MAUTIC', true );
+define( 'KNTNT_FORM_SHORTCODE_MAUTIC', true );
 
 require 'vendor/autoload.php';
 
