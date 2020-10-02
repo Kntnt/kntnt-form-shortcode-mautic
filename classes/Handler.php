@@ -21,9 +21,11 @@ final class Handler {
 
     private $additional_emails_field;
 
+    private $success;
 
     public function run() {
         add_action( 'kntnt-form-shortcode-post', [ $this, 'handle_post' ] );
+        add_filter( 'kntnt-form-shortcode-post-success', [ $this, 'is_success' ] );
     }
 
     public function handle_post( $form_fields ) {
@@ -37,6 +39,10 @@ final class Handler {
         $this->find_form_contact();
         $this->prepare_fields();
         $this->mautic_push();
+    }
+
+    public function is_success() {
+        return $this->success;
     }
 
     private function setup_mautic_contact_api() {
@@ -426,11 +432,13 @@ final class Handler {
 
         $response = $this->contacts_api->create( $contact );
         if ( isset( $response['contact'] ) ) {
-            Plugin::error( 'Successfully created Mautic contact with id %s.', $response['contact']['id'] );
+            Plugin::log( 'Successfully created Mautic contact with id %s.', $response['contact']['id'] );
+            $this->success = true;
             $this->mautic_add_contact_to_segment( $response['contact']['id'] );
         }
         else {
             Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+            $this->success = false;
         }
 
     }
@@ -444,11 +452,13 @@ final class Handler {
 
         $response = $this->contacts_api->edit( $id, $contact, false );
         if ( isset( $response['contact'] ) ) {
-            Plugin::error( 'Successfully updated Mautic contact with id %s.', $response['contact']['id'] );
+            Plugin::log( 'Successfully updated Mautic contact with id %s.', $response['contact']['id'] );
+            $this->success = true;
             $this->mautic_add_contact_to_segment( $response['contact']['id'] );
         }
         else {
             Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+            $this->success = false;
         }
 
     }
@@ -458,12 +468,15 @@ final class Handler {
         $response = $this->segments_api->addContact( $this->segment_id, $contact_id );
         if ( isset( $response['errors'] ) && 404 == $response['errors'][0]['code'] && false === strpos( $response['errors'][0]['message'], 'Item was not found' ) ) {
             Plugin::error( 'Error when connecting to Mautic: %s', $response['errors'][0]['message'] );
+            $this->success = false;
         }
         else if ( ! isset( $response['success'] ) ) {
-            Plugin::log( 'No segment with id %s.', $this->segment_id );
+            Plugin::error( 'No segment with id %s.', $this->segment_id );
+            $this->success = false;
         }
         else {
-            Plugin::error( 'Successfully added contact %s to segment %s.', $contact_id, $this->segment_id );
+            Plugin::log( 'Successfully added contact %s to segment %s.', $contact_id, $this->segment_id );
+            $this->success = true;
         }
 
     }
