@@ -4,7 +4,7 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 
-trait Log {
+trait LogUtilities {
 
     // If `$message` isn't a string, its value is printed. If `$message` is
     // a string, it is written with each occurrence of '%s' replaced with
@@ -28,6 +28,22 @@ trait Log {
         static::_log( $message, ...$args );
     }
 
+    public static final function stringify( $val ) {
+        if ( is_null( $val ) ) {
+            $out = 'NULL';
+        }
+        else if ( is_bool( $val ) ) {
+            $out = $val ? 'TRUE' : 'FALSE';
+        }
+        else if ( is_array( $val ) || is_object( $val ) ) {
+            $out = print_r( $val, true );
+        }
+        else {
+            $out = (string) $val;
+        }
+        return $out;
+    }
+
     private static function _log( $message = '', ...$args ) {
         if ( ! is_string( $message ) ) {
             $args = [ $message ];
@@ -36,9 +52,7 @@ trait Log {
         $caller = debug_backtrace( DEBUG_BACKTRACE_IGNORE_ARGS, 3 );
         $caller = $caller[2]['class'] . '->' . $caller[2]['function'] . '()';
         foreach ( $args as &$arg ) {
-            if ( is_array( $arg ) || is_object( $arg ) ) {
-                $arg = print_r( $arg, true );
-            }
+            $arg = self::stringify( $arg );
         }
         $message = sprintf( $message, ...$args );
         error_log( "$caller: $message" );
