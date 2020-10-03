@@ -2,11 +2,11 @@
 
 /**
  * @wordpress-plugin
- * Plugin Name:       Kntnt Form Shortcode for Mautic
+ * Plugin Name:       Kntnt Form Shortcode (KFS) – Mautic integration
  * Plugin URI:        https://github.com/kntnt/kntnt-form-shortcode-mautic
  * GitHub Plugin URI: https://github.com/kntnt/kntnt-form-shortcode-mautic
  * Description:       Allows posting to Mautic from Kntnt Form Shortcode (KFS).
- * Version:           1.0.2
+ * Version:           1.0.3
  * Author:            Thomas Barregren
  * Author URI:        https://www.kntnt.com/
  * License:           GPL-3.0+
