@@ -6,7 +6,7 @@
  * Plugin URI:        https://github.com/kntnt/kntnt-form-shortcode-mautic
  * GitHub Plugin URI: https://github.com/kntnt/kntnt-form-shortcode-mautic
  * Description:       Allows posting to Mautic from Kntnt Form Shortcode (KFS).
- * Version:           1.0.3
+ * Version:           1.0.4
  * Author:            Thomas Barregren
  * Author URI:        https://www.kntnt.com/
  * License:           GPL-3.0+
@@ -19,7 +19,7 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 // Uncomment following line to debug this plugin.
-define( 'KNTNT_FORM_SHORTCODE_MAUTIC', true );
+// define( 'KNTNT_FORM_SHORTCODE_MAUTIC', true );
 
 require 'vendor/autoload.php';
 
