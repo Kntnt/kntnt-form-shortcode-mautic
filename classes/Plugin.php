@@ -3,7 +3,7 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 // Uncomment following line to debug this plugin.
-define( 'KNTNT_FORM_SHORTCODE_MAUTIC_DEBUG', true );
+// define( 'KNTNT_FORM_SHORTCODE_MAUTIC_DEBUG', true );
 
 final class Plugin extends Abstract_Plugin {
 
