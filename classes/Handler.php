@@ -322,7 +322,7 @@ final class Handler {
 
     private function copy_form_fields_to( &$contact, $include_email ) {
 
-        // Copy all fields except the fields fore mail and additional emails.
+        // Copy all fields except the fields for email and additional emails.
         $modified_contact = (object) ( ( (array) $contact ) + $this->fields );
 
         if ( $include_email && isset( $this->fields['email'] ) ) {
@@ -387,7 +387,7 @@ final class Handler {
     }
 
     private function mautic_contact_by_email( $email ) {
-        $search_string = "+email:$email";
+        $search_string = "email:$email";
         $response = $this->contacts_api->getList( $search_string );
         if ( isset( $response['errors'] ) ) {
             $contact = null;
@@ -399,7 +399,7 @@ final class Handler {
         }
         else {
             $segment = array_shift( $response['contacts'] );
-            $contact = $segment['fields']['all'];
+            $contact = $this->contact( $segment['fields']['all'] );
             Plugin::log( 'Found contact with id %s and email "%s".', $contact->id, $contact->email );
         }
         return $contact;
