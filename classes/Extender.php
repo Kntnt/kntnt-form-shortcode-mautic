@@ -68,6 +68,7 @@ final class Extender {
         return $defaults;
     }
 
+    /** @noinspection PhpUnusedParameterInspection */
     public function peel_off_mautic_field_and_set_data_attribute( $atts, $type, $field_id, $form_id ) {
         if ( $mautic_field = Plugin::peel_off( 'mautic-field', $atts ) ) {
             $this->mautic_fields[ $form_id ][ $field_id ] = $mautic_field;

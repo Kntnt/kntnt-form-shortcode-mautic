@@ -3,13 +3,14 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 // Uncomment following line to debug this plugin.
-// define( 'KNTNT_FORM_SHORTCODE_MAUTIC_DEBUG', true );
+define( 'KNTNT_FORM_SHORTCODE_MAUTIC_DEBUG', true );
+
 
 final class Plugin extends Abstract_Plugin {
 
-    use LogUtilities;
-    use DataUtilities;
-    use FileUtilities;
+    use Logger;
+    use Options;
+    use Includes;
 
     public static function peel_off( $key, &$array ) {
         if ( array_key_exists( $key, $array ) ) {

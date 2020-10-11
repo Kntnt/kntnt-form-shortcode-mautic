@@ -3,6 +3,7 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 use Mautic\Auth\ApiAuth;
+use Mautic\Exception\ContextNotFoundException;
 use Mautic\MauticApi;
 
 final class Handler {
@@ -51,8 +52,12 @@ final class Handler {
             'userName' => Plugin::option( 'username' ),
             'password' => Plugin::option( 'password' ),
         ], 'BasicAuth' );
-        $this->contacts_api = ( new MauticApi )->newApi( 'contacts', $auth, $api_url );
-        Plugin::log( 'Mautic Contacts API at %s', $api_url );
+        try {
+            $this->contacts_api = ( new MauticApi )->newApi( 'contacts', $auth, $api_url );
+            Plugin::log( 'Mautic Contacts API at %s', $api_url );
+        } catch ( ContextNotFoundException $e ) {
+            Plugin::error( 'Mautic Contacts API failure: %s', $e->getMessage() );
+        }
     }
 
     private function setup_mautic_segment_api() {
@@ -61,8 +66,12 @@ final class Handler {
             'userName' => Plugin::option( 'username' ),
             'password' => Plugin::option( 'password' ),
         ], 'BasicAuth' );
-        $this->segments_api = ( new MauticApi )->newApi( 'segments', $auth, $api_url );
-        Plugin::log( 'Mautic Segments API at %s', $api_url );
+        try {
+            $this->segments_api = ( new MauticApi )->newApi( 'segments', $auth, $api_url );
+            Plugin::log( 'Mautic Segments API at %s', $api_url );
+        } catch ( ContextNotFoundException $e ) {
+            Plugin::error( 'Mautic Segments API failure: %s', $e->getMessage() );
+        }
     }
 
     private function set_segment( $form_fields ) {

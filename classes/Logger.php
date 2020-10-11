@@ -4,7 +4,7 @@
 namespace Kntnt\Form_Shortcode_Mautic;
 
 
-trait LogUtilities {
+trait Logger {
 
     // If `$message` isn't a string, its value is printed. If `$message` is
     // a string, it is written with each occurrence of '%s' replaced with

@@ -1,6 +1,8 @@
 <?php
 
+
 namespace Kntnt\Form_Shortcode_Mautic;
+
 
 class Settings extends Abstract_Settings {
 

@@ -33,6 +33,7 @@ abstract class Abstract_Plugin {
         if ( is_readable( self::$plugin_dir . '/install.php' ) ) {
             register_activation_hook( self::$plugin_dir . '/' . self::$ns . '.php', function () {
                 if ( null === get_option( self::$ns, null ) ) {
+                    /** @noinspection PhpIncludeInspection */
                     require self::$plugin_dir . '/install.php';
                 }
             } );
@@ -46,15 +47,24 @@ abstract class Abstract_Plugin {
         }
 
         // Setup this plugin to run.
-        foreach ( $this->classes_to_load() as $context => $hoooks_and_classes ) {
+        foreach ( $this->classes_to_load() as $context => $hooks_and_classes ) {
             if ( $this->is_context( $context ) ) {
-                foreach ( $hoooks_and_classes as $hook => $classes ) {
+                foreach ( $hooks_and_classes as $hook => $classes ) {
                     foreach ( $classes as $class ) {
                         add_action( $hook, [ $this->instance( $class ), 'run' ] );
                     }
                 }
             }
 
+        }
+
+        // Calls the "constructor" of each trait. The "constructor" is a method
+        // with the same name as the trait.
+        foreach ( class_uses( $this ) as $trait ) {
+            $method = substr( $trait, strrpos( $trait, '\\' ) + 1 );
+            if ( method_exists( $this, $method ) ) {
+                $this->$method();
+            }
         }
 
     }
@@ -84,6 +94,17 @@ abstract class Abstract_Plugin {
     // Name space of plugin.
     public static final function ns() {
         return self::$ns;
+    }
+
+    // Plugin name.
+    public static final function name() {
+        $key = self::$ns . '-plugin-name';
+        $name = get_transient( $key );
+        if ( ! $name ) {
+            $name = get_plugin_data( self::plugin_dir( self::$ns . '.php' ), false, false )['Name'];
+            set_transient( $key, $name, DAY_IN_SECONDS );
+        }
+        return $name;
     }
 
     // Plugin version.

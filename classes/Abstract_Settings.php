@@ -1,36 +1,38 @@
 <?php
 
+
 namespace Kntnt\Form_Shortcode_Mautic;
 
-abstract class Abstract_Settings {
 
-    private $ns;
-
-    public function __construct() {
-        $this->ns = Plugin::ns();
-    }
+class Abstract_Settings {
 
     /**
      * Bootstrap instance of this class.
      */
     public function run() {
+        $ns = Plugin::ns();
         add_action( 'admin_menu', [ $this, 'add_options_page' ] );
-        add_filter( "plugin_action_links_$this->ns/$this->ns.php", [ $this, 'add_plugin_action_links' ], 10, 2 );
+        add_filter( "plugin_action_links_$ns/$ns.php", [ $this, 'add_plugin_action_links' ], 10, 2 );
     }
 
     /**
      * Add settings page to the option menu.
      */
     public function add_options_page() {
-        add_options_page( $this->page_title(), $this->menu_title(), $this->capability(), $this->ns, [ $this, 'options_page' ] );
+        add_options_page( $this->page_title(), $this->menu_title(), $this->capability(), Plugin::ns(), [ $this, 'options_page' ] );
     }
 
     /**
      * Returns $links with a link to this setting page added.
+     *
+     * @param $actions
+     *
+     * @return mixed
      */
     public function add_plugin_action_links( $actions ) {
+        $ns = Plugin::ns();
         $settings_link_name = __( 'Settings', 'kntnt-form-shortcode-mautic' );
-        $settings_link_url = admin_url( "options-general.php?page={$this->ns}" );
+        $settings_link_url = admin_url( "options-general.php?page={$ns}" );
         $actions[] = "<a href=\"$settings_link_url\">$settings_link_name</a>";
         return $actions;
     }
@@ -48,7 +50,7 @@ abstract class Abstract_Settings {
         // Update options if the option page is saved.
         if ( $_POST ) {
 
-            $opt = isset( $_POST[ $this->ns ] ) ? ( $_POST[ $this->ns ] ) : [];
+            $opt = isset( $_POST[ Plugin::ns() ] ) ? ( $_POST[ Plugin::ns() ] ) : [];
 
             // The need for stripslashes() despite that Magic Quotes were
             // deprecated already in PHP 5.4 is due to WordPress backward
@@ -66,22 +68,32 @@ abstract class Abstract_Settings {
 
     }
 
-    private $is_saving = false;
-
     /**
      * Returns title used as menu item.
      */
-    abstract protected function menu_title();
+    protected function menu_title() {
+        return Plugin::name();
+    }
 
     /**
      * Returns title used as head of settings page.
      */
-    abstract protected function page_title();
+    protected function page_title() {
+        return Plugin::name();
+    }
 
     /**
      * Returns all fields used on the settings page.
      */
-    abstract protected function fields();
+    protected function fields() {
+
+        $fields['submit'] = [
+            'type' => 'submit',
+        ];
+
+        return $fields;
+
+    }
 
     /**
      * Returns necessary capability to access the settings page.
@@ -93,9 +105,11 @@ abstract class Abstract_Settings {
     /**
      * Validates that $value is not empty.
      *
-     * @param $value The value to validate.
+     * @param $value mixed The value to validate.
+     * @param $field array The field description.
      *
      * @return bool True if and only if $value in non-empty.
+     * @noinspection PhpUnusedParameterInspection
      */
     protected function validate_required( $value, $field ) {
         return ! empty( $value );
@@ -104,7 +118,8 @@ abstract class Abstract_Settings {
     /**
      * Validates that $integer is either empty or an integer.
      *
-     * @param $integer The value to validate.
+     * @param $integer integer The value to validate.
+     * @param $field array The field description.
      *
      * @return bool True if and only if $integer is either an empty scalar (e.g.
      * an empty string but not an empty array) or an integer.
@@ -120,8 +135,8 @@ abstract class Abstract_Settings {
     /**
      * Validates that $number is either empty or a number.
      *
-     * @param $number The value to validate.
-     * @param $field  The field description.
+     * @param $number float The value to validate.
+     * @param $field array The field description.
      *
      * @return bool True if and only if $number is either an empty scalar (e.g.
      * an empty string but not an empty array) or an integer or floating point
@@ -137,10 +152,12 @@ abstract class Abstract_Settings {
     /**
      * Validates that $val is an URL.
      *
-     * @param $url    The value to validate.
-     * @param $field  The field description.
+     * @param $url   string The value to validate.
+     * @param $field array The field description.
      *
      * @return bool True if and only if $url is a proper formatted URL or empty.
+     * @noinspection PhpUnusedParameterInspection
+     * @noinspection PhpUnused
      */
     protected function validate_url( $url, $field ) {
         return ( '' == $url ) || ( false !== filter_var( $url, FILTER_VALIDATE_URL ) );
@@ -149,11 +166,13 @@ abstract class Abstract_Settings {
     /**
      * Validates that $email is an email address.
      *
-     * @param $email  The value to validate.
-     * @param $field  The field description.
+     * @param $email  string The value to validate.
+     * @param $field  array The field description.
      *
      * @return bool True if and only if $email is a proper formatted email
      * address.
+     * @noinspection PhpUnusedParameterInspection
+     * @noinspection PhpUnused
      */
     protected function validate_email( $email, $field ) {
         return ( '' == $email ) || ( false !== filter_var( $email, FILTER_VALIDATE_EMAIL ) );
@@ -162,8 +181,8 @@ abstract class Abstract_Settings {
     /**
      * Validates that the value(s) in $values match the options in $options.
      *
-     * @param       $val    Either a value or an array of values to validate.
-     * @param       $field  The field description.
+     * @param       $val    mixed Either a value or an array of values to validate.
+     * @param       $field  array The field description.
      *
      * @return bool True if and only if a single value in $value match an option
      *              in $option or if all values in an array $values of values
@@ -187,17 +206,16 @@ abstract class Abstract_Settings {
     }
 
     /**
-     * A concret instance
+     * A concrete instance
      *
-     * @param $opt
-     * @param $fields
+     * @param $opt array The option values.
+     * @param $fields array The field description.
      */
-    protected function actions_after_saving( $opt, $fields ) {
-        do_action( "$this->ns/after_saving", $opt, $fields );
-    }
+    protected function actions_after_saving( $opt, $fields ) { }
 
     /**
      * Render settings page.
+     * @noinspection PhpUnusedLocalVariableInspection
      */
     private function render_settings_page() {
 
@@ -208,7 +226,7 @@ abstract class Abstract_Settings {
         }
 
         // Variables that will be visible for the settings-page template.
-        $ns = $this->ns;
+        $ns = Plugin::ns();
         $title = $this->page_title();
         $fields = $this->fields();
         $values = Plugin::option();
@@ -230,17 +248,20 @@ abstract class Abstract_Settings {
         }
 
         // Render settings page; include the settings-page template.
-        include Plugin::template( 'settings-page.php' );
+        /** @noinspection PhpIncludeInspection */
+        include Plugin::path_to_include_file( 'settings-page.php' );
 
     }
 
     /**
      * Validate, sanitize and save field values.
+     *
+     * @param $opt array The option values.
      */
     private function update_options( $opt ) {
 
         // Abort if the form's nonce is not correct or expired.
-        if ( ! wp_verify_nonce( $_POST['_wpnonce'], $this->ns ) ) {
+        if ( ! wp_verify_nonce( $_POST['_wpnonce'], Plugin::ns() ) ) {
             wp_die( __( 'Nonce failed.', 'kntnt-form-shortcode-mautic' ) );
         }
 
@@ -337,7 +358,7 @@ abstract class Abstract_Settings {
             $opt = array_merge( Plugin::option( null, [] ), $opt );
 
             // Save inputted values.
-            update_option( $this->ns, $opt );
+            update_option( Plugin::ns(), $opt );
 
             // Success notification
             $this->notify_success();
