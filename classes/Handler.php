@@ -139,13 +139,13 @@ final class Handler {
 
             Plugin::log( 'Mautic is currently tracking the visitor and identified s/he by id %s from the cookie.', $this->cookie_contact->id );
 
-            if ( $this->form_contact && $this->form_contact->email && $this->form_contact->email != $this->cookie_contact->email ) {
+            if ( $this->form_contact->email && $this->cookie_contact->email && $this->form_contact->email != $this->cookie_contact->email ) {
                 // An email address have been provided that differs from the
                 // email address that Mautic has associated with the visitor.
                 // We need to manage the conflicting email addresses according
                 // to settings.
 
-                Plugin::log( 'Conflicting email addresses; form contact email address %s differs from cookie contact email address %s.', $this->form_contact->email, $this->cookie_contact->email );
+                Plugin::log( 'Conflicting email addresses; form contact email address "%s" differs from cookie contact email address "%s".', $this->form_contact->email, $this->cookie_contact->email );
 
                 // What to do if the form contains a field mapped to the email
                 // field of Mautic and the values of these two are not identical
@@ -253,9 +253,9 @@ final class Handler {
                 else if ( 'switch-bind' == $email_collision_handling ) {
                     // Works as 'switch' with following addition: If a field for
                     // additional emails is provided, the form address is saved
-                    // in that field for the cookie contact. Thus, the 'bind'
-                    // option acts as the 'save-bind' option but with the cookie
-                    // and form contact switched.
+                    // in that field for the cookie contact. Thus, the
+                    // 'switch-bind' rule acts as the 'save-bind' option but
+                    // with the cookie and form contact switched.
 
                     Plugin::log( 'Managing conflict by the SWITCH-BIND rule.' );
 
@@ -275,7 +275,7 @@ final class Handler {
                     $this->cookie_contact->push = true;
                     $this->form_contact->push = true;
 
-                    // Allow Mautic contact to be created if missing.
+                    // Allow form contact to be created if missing.
                     $this->form_contact->create = true;
 
                 }
@@ -285,16 +285,16 @@ final class Handler {
 
             }
             else {
-                // Either we don't have an email address provide by the form,
-                // or it's identical to the tracked visitors email address.
-                // Either way, push form fields, except the field mapped to the
-                // email field of Mautic, to the cookie contact.
+                // One of three things are true: (i) The cookie contact has no
+                // email. (ii) The form contact has no email. (iii) The cookie
+                // and the form email addresses are equal. Regardless, all form
+                // fields are pushed to the cookie contact, with exception of an
+                // empty email field mapped to Mautic's email field.
 
-                Plugin::log( 'Either we don\'t have an email address provide by the form, or it\'s identical to the tracked visitors email address.' );
+                Plugin::log( 'One of three things are true: (i) The cookie contact has no email. (ii) The form contact has no email. (iii) The cookie and the form email addresses are equal. Regardless, all form fields are pushed to the cookie contact.' );
 
-                // Copy form fields, excluding email address, to cookie
-                // contact.
-                $this->copy_form_fields_to( $this->cookie_contact, false );
+                // Copy form fields to cookie contact.
+                $this->copy_form_fields_to( $this->cookie_contact, ! empty( $this->fields['email'] ) );
 
                 // Allow push to only the cookie contact.
                 $this->cookie_contact->push = true;
@@ -318,6 +318,7 @@ final class Handler {
             $this->form_contact->create = true;
 
         }
+
     }
 
     private function copy_form_fields_to( &$contact, $include_email ) {
@@ -332,7 +333,7 @@ final class Handler {
         }
 
         // Merge additional emails in the form into the field of additional
-        // emails and Remove contact email from the field.
+        // emails and remove contact email from the field.
         if ( isset( $this->fields[ $this->additional_emails_field ] ) ) {
             $this->if_additional_emails_add( $this->fields[ $this->additional_emails_field ], $modified_contact );
         }
